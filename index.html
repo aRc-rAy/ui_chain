@@ -1003,10 +1003,26 @@
 					const [colId, details] = item[1];
 					const targetIds = item[2];
 
+					// Customize node data - only keep essential fields
+					const customDetails = {
+						name: details.name || colId,
+						t_type: details.t_type || 'default',
+						// Only include 2-3 most important fields
+						table: details.table || details.path || null,
+						type: details.type || details.data_type || null
+					};
+					
+					// Remove null values
+					Object.keys(customDetails).forEach(key => {
+						if (customDetails[key] === null) {
+							delete customDetails[key];
+						}
+					});
+
 					const node = {
 						id: colId,
 						level: level,
-						details: details,
+						details: customDetails,
 					};
 					nodes.push(node);
 					nodeMap.set(colId, node);
@@ -1021,33 +1037,28 @@
 				const width = container.clientWidth;
 				const height = container.clientHeight;
 
-				// Node dimensions - clean and spacious
-				const nodeWidth = 280;
-				const nodeHeight = 180;
+				// Node dimensions - compact but readable
+				const nodeWidth = 260;
+				const nodeHeight = 140;
 
 				// Calculate positions based on level
 				const levelGroups = d3.group(nodes, (d) => d.level);
 				const levels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
 
-				// Increase horizontal spacing - use more width for level spacing
-				const levelSpacing = Math.max(width / (levels.length + 1), 400); // Minimum 400px between levels
+				// Horizontal spacing
+				const levelSpacing = Math.max(width / (levels.length + 1), 380);
 
-				// Add padding to avoid nodes being cut off
-				const padding = 200; // Padding for edges
-				const verticalGap = 80; // Moderate vertical gap between stacked nodes
+				// Vertical spacing - more compact
+				const padding = 80; // Top padding
+				const verticalGap = 40; // Gap between nodes
 
 				levels.forEach((lvl, i) => {
 					const groupNodes = levelGroups.get(lvl);
 
-					// Simple vertical positioning - just stack them with clear gaps
+					// Simple vertical positioning - stack from top
 					groupNodes.forEach((node, j) => {
 						node.x = (i + 1) * levelSpacing;
-						// Simple calculation: padding + (index × spacing between centers)
-						// Spacing between centers = nodeHeight + verticalGap
 						node.y = padding + j * (nodeHeight + verticalGap) + nodeHeight / 2;
-						console.log(
-							`Node ${node.id}: position (${node.x}, ${node.y}), level=${lvl}, verticalIndex=${j}`
-						);
 					});
 				});
 
@@ -1074,7 +1085,20 @@
 					}
 				}
 
-				// Draw curved links
+				// Define arrowhead marker (smaller size)
+				svg.append("defs").append("marker")
+					.attr("id", "arrowhead")
+					.attr("viewBox", "0 -5 10 10")
+					.attr("refX", 8)
+					.attr("refY", 0)
+					.attr("markerWidth", 5)
+					.attr("markerHeight", 5)
+					.attr("orient", "auto")
+					.append("path")
+					.attr("d", "M0,-5L10,0L0,5")
+					.attr("fill", "#9ca3af");
+
+				// Draw curved links with arrowheads
 				svg
 					.selectAll(".link")
 					.data(links)
@@ -1096,7 +1120,8 @@
 					.style("fill", "none")
 					.style("stroke", "#9ca3af")
 					.style("stroke-width", "2px")
-					.style("opacity", 0.5);
+					.style("opacity", 0.5)
+					.attr("marker-end", "url(#arrowhead)");
 
 				// Draw nodes with enhanced design
 				const nodeGroup = svg
@@ -1160,7 +1185,7 @@
 					.attr("rx", "10 10 0 0")
 					.style("fill", (d) => getBadgeColor(d.details.t_type));
 
-				// Column/Table name - bold and prominent
+				// Column/Table name - bold and prominent with truncation
 				nodeGroup
 					.append("text")
 					.attr("class", "node-id")
@@ -1171,7 +1196,8 @@
 					.style("fill", "#111827")
 					.text((d) => {
 						const name = d.details.name || d.id;
-						return name.length > 26 ? name.substring(0, 24) + "..." : name;
+						// Truncate based on new smaller node width (260px)
+						return name.length > 24 ? name.substring(0, 22) + "..." : name;
 					});
 
 				// Type badge - prominent pill shape
@@ -1208,44 +1234,24 @@
 					.style("stroke", "#e5e7eb")
 					.style("stroke-width", 1.5);
 
-				// Add details in clean format
+				// Add details in clean format with proper truncation
 				nodeGroup.each(function (d) {
 					const group = d3.select(this);
 					let yOffset = 70;
 					const leftMargin = 16;
 					const lineHeight = 24;
 
-					// Priority fields to show
-					const priorityFields = ["table", "type", "schema", "data_type"];
-					const detailEntries = [];
+					// Get custom details (already filtered)
+					const detailEntries = Object.entries(d.details).filter(
+						([key, value]) => key !== "name" && value !== null && value !== undefined && value !== ""
+					);
 
-					// Add priority fields first
-					priorityFields.forEach((key) => {
-						if (d.details[key] && key !== "t_type") {
-							detailEntries.push([key, d.details[key]]);
-						}
-					});
-
-					// Add other fields
-					Object.entries(d.details).forEach(([key, value]) => {
-						if (
-							!priorityFields.includes(key) &&
-							key !== "t_type" &&
-							key !== "name" &&
-							value !== null &&
-							value !== undefined &&
-							value !== ""
-						) {
-							detailEntries.push([key, value]);
-						}
-					});
-
-					// Display details (max 4 lines to fit in card)
-					detailEntries.slice(0, 4).forEach(([key, value]) => {
-						// Truncate value if too long
+					// Display details (max 3 lines to fit in smaller card)
+					detailEntries.slice(0, 3).forEach(([key, value]) => {
+						// Truncate value if too long (adjusted for 260px width)
 						let displayValue = String(value);
-						if (displayValue.length > 22) {
-							displayValue = displayValue.substring(0, 20) + "...";
+						if (displayValue.length > 20) {
+							displayValue = displayValue.substring(0, 18) + "...";
 						}
 
 						// Key label
@@ -1294,18 +1300,18 @@
 
 				svg.call(zoom);
 
-				// Initial zoom to fit content
+				// Initial zoom to fit content and show from top
 				const bounds = zoomGroup.node().getBBox();
 				const fullWidth = bounds.width;
 				const fullHeight = bounds.height;
 				const midX = bounds.x + fullWidth / 2;
-				const midY = bounds.y + fullHeight / 2;
+				const topY = bounds.y; // Use top of content instead of middle
 
 				if (fullWidth > 0 && fullHeight > 0) {
-					const scale = Math.min(width / fullWidth, height / fullHeight) * 0.75; // Reduced from 0.9 to 0.75 for better spacing
+					const scale = Math.min(width / fullWidth, height / fullHeight) * 0.75;
 					const translate = [
 						width / 2 - scale * midX,
-						height / 2 - scale * midY,
+						100 - scale * topY, // Position to show from top with small margin
 					];
 
 					svg.call(
