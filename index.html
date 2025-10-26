@@ -339,9 +339,9 @@
 				text-anchor: middle;
 			}
 		</style>
-		
+
 		<!-- Preload critical resources -->
-		<link rel="preload" href="https://d3js.org/d3.v7.min.js" as="script">
+		<link rel="preload" href="https://d3js.org/d3.v7.min.js" as="script" />
 	</head>
 	<body>
 		<!-- Modal Overlay -->
@@ -389,30 +389,30 @@
 						tables: Array.from(dataCache.tables.entries()),
 						lineage: Array.from(dataCache.lineage.entries()),
 						searches: Array.from(dataCache.searches.entries()),
-					timestamp: Date.now(),
-				};
-				localStorage.setItem("lineageCache", JSON.stringify(cacheData));
-			} catch (e) {
-				// Failed to save cache
-			}
-		}			// Load from localStorage on page load
+						timestamp: Date.now(),
+					};
+					localStorage.setItem("lineageCache", JSON.stringify(cacheData));
+				} catch (e) {
+					// Failed to save cache
+				}
+			} // Load from localStorage on page load
 			function loadCacheFromStorage() {
 				try {
 					const cached = localStorage.getItem("lineageCache");
 					if (cached) {
-					const cacheData = JSON.parse(cached);
-					// Check if cache is less than 1 hour old
-					if (Date.now() - cacheData.timestamp < 3600000) {
-						dataCache.columns = new Map(cacheData.columns);
-						dataCache.tables = new Map(cacheData.tables);
-						dataCache.lineage = new Map(cacheData.lineage);
-						dataCache.searches = new Map(cacheData.searches);
+						const cacheData = JSON.parse(cached);
+						// Check if cache is less than 1 hour old
+						if (Date.now() - cacheData.timestamp < 3600000) {
+							dataCache.columns = new Map(cacheData.columns);
+							dataCache.tables = new Map(cacheData.tables);
+							dataCache.lineage = new Map(cacheData.lineage);
+							dataCache.searches = new Map(cacheData.searches);
+						}
 					}
+				} catch (e) {
+					// Cache loading failed
 				}
-			} catch (e) {
-				// Cache loading failed
-			}
-		}			// Navigation history for instant back navigation
+			} // Navigation history for instant back navigation
 			const navigationHistory = [];
 			let currentView = null;
 
@@ -468,26 +468,26 @@
 
 			// Handle search input with autocomplete suggestions
 			searchInput.addEventListener("input", (e) => {
-			const query = e.target.value.trim();
+				const query = e.target.value.trim();
 
-			// Clear previous timer
-			if (debounceTimer) {
-				clearTimeout(debounceTimer);
-			}
+				// Clear previous timer
+				if (debounceTimer) {
+					clearTimeout(debounceTimer);
+				}
 
-			if (query.length === 0) {
-				hideSuggestions();
-				return;
-			}
+				if (query.length === 0) {
+					hideSuggestions();
+					return;
+				}
 
-			// Show loading state
-			showLoadingState();
+				// Show loading state
+				showLoadingState();
 
-			// Debounce: wait 300ms before fetching suggestions
-			debounceTimer = setTimeout(() => {
-				fetchSuggestions(query);
-			}, 300);
-		});			// Handle Enter key for full search
+				// Debounce: wait 300ms before fetching suggestions
+				debounceTimer = setTimeout(() => {
+					fetchSuggestions(query);
+				}, 300);
+			}); // Handle Enter key for full search
 			searchInput.addEventListener("keypress", async (e) => {
 				if (e.key === "Enter") {
 					const query = e.target.value.trim();
@@ -504,7 +504,7 @@
 				if (navigationHistory.length > 0) {
 					const previousView = navigationHistory.pop();
 					currentView = previousView;
-					
+
 					// Restore previous view from cache or current response
 					if (previousView && previousView.data) {
 						showResults(previousView.data);
@@ -516,17 +516,17 @@
 				}
 			});
 
-		// Fetch suggestions with debouncing
-		async function fetchSuggestions(query) {
-			try {
-				const response = await fetch(`${API_BASE_URL}/api/suggest?q=${query}`);
-				const suggestions = await response.json();
-				
-				showSuggestions(suggestions);
-			} catch (error) {
-				hideSuggestions();
-			}
-		}			// Show suggestions dropdown
+			// Fetch suggestions with debouncing
+			async function fetchSuggestions(query) {
+				try {
+					const response = await fetch(`${API_BASE_URL}/api/suggest/${query}`);
+					const suggestions = await response.json();
+
+					showSuggestions(suggestions);
+				} catch (error) {
+					hideSuggestions();
+				}
+			} // Show suggestions dropdown
 			function showSuggestions(suggestions) {
 				if (suggestions.length === 0) {
 					hideSuggestions();
@@ -576,39 +576,40 @@
 					!searchInput.contains(e.target) &&
 					!suggestionsDropdown.contains(e.target)
 				) {
-				hideSuggestions();
-			}
-		});
+					hideSuggestions();
+				}
+			});
 
-		// Fetch search results from API
-		async function fetchSearchResults(query) {
-		try {
-			// Check cache first
-			const cacheKey = `search_${query}`;
-		if (dataCache.searches.has(cacheKey)) {
-			const cachedData = dataCache.searches.get(cacheKey);
-			currentApiResponse = cachedData;
-			showResults(cachedData);
-			return;
-		}
+			// Fetch search results from API
+			async function fetchSearchResults(query) {
+				try {
+					// Check cache first
+					const cacheKey = `search_${query}`;
+					if (dataCache.searches.has(cacheKey)) {
+						const cachedData = dataCache.searches.get(cacheKey);
+						currentApiResponse = cachedData;
+						showResults(cachedData);
+						return;
+					}
 
-		const response = await fetch(`${API_BASE_URL}/api/search?q=${query}`);
-		const data = await response.json();
+					const response = await fetch(`${API_BASE_URL}/api/search/${query}`);
+					const data = await response.json();
 
-		// Cache the response
-		dataCache.searches.set(cacheKey, data);
-		saveCacheToStorage();
+					// Cache the response
+					dataCache.searches.set(cacheKey, data);
+					saveCacheToStorage();
 
-		currentApiResponse = data;
-		showResults(data);
-	} catch (error) {
-		showMessage("Error fetching results. Please try again.");
-	}
-}		// Determine response type and display accordingly
-		function showResults(data) {
-			// Reset navigation when showing search results
-			navigationHistory.length = 0;
-			currentView = { type: 'results', data: data };				resultsContainer.innerHTML = "";
+					currentApiResponse = data;
+					showResults(data);
+				} catch (error) {
+					showMessage("Error fetching results. Please try again.");
+				}
+			} // Determine response type and display accordingly
+			function showResults(data) {
+				// Reset navigation when showing search results
+				navigationHistory.length = 0;
+				currentView = { type: "results", data: data };
+				resultsContainer.innerHTML = "";
 				svg.classed("active", false);
 				backButton.classList.remove("active");
 
@@ -715,39 +716,39 @@
 				return html;
 			}
 
-		// Fetch column details
-		async function fetchColumnDetails(id) {
-			try {
-				// Check cache first
-				if (dataCache.columns.has(id)) {
-					const cachedData = dataCache.columns.get(id);
-					showColumnDetails(cachedData);
-					return;
+			// Fetch column details
+			async function fetchColumnDetails(id) {
+				try {
+					// Check cache first
+					if (dataCache.columns.has(id)) {
+						const cachedData = dataCache.columns.get(id);
+						showColumnDetails(cachedData);
+						return;
+					}
+
+					// TODO: Replace with actual API call
+					const response = await fetch(`${API_BASE_URL}/api/column/${id}`);
+					const data = await response.json();
+
+					// Cache the response
+					dataCache.columns.set(id, data);
+					saveCacheToStorage();
+
+					showColumnDetails(data);
+				} catch (error) {
+					showMessage("Error fetching column details. Please try again.");
 				}
+			} // Show column details
+			function showColumnDetails(columnData) {
+				// Push current view to history
+				if (currentView) {
+					navigationHistory.push(currentView);
+				}
+				currentView = { type: "column", id: columnData.id, data: columnData };
 
-				// TODO: Replace with actual API call
-				const response = await fetch(`${API_BASE_URL}/api/column/${id}`);
-				const data = await response.json();
-
-				// Cache the response
-				dataCache.columns.set(id, data);
-				saveCacheToStorage();
-
-				showColumnDetails(data);
-			} catch (error) {
-				showMessage("Error fetching column details. Please try again.");
-			}
-		}		// Show column details
-		function showColumnDetails(columnData) {
-			// Push current view to history
-			if (currentView) {
-				navigationHistory.push(currentView);
-			}
-			currentView = { type: 'column', id: columnData.id, data: columnData };
-			
-			resultsContainer.innerHTML = "";
-			svg.classed("active", false);
-			backButton.classList.add("active");
+				resultsContainer.innerHTML = "";
+				svg.classed("active", false);
+				backButton.classList.add("active");
 
 				let html = '<div style="max-width: 800px; margin: 0 auto;">';
 
@@ -820,39 +821,39 @@
 				}
 			}
 
-		// Fetch table details
-		async function fetchTableDetails(id) {
-			try {
-				// Check cache first
-				if (dataCache.tables.has(id)) {
-					const cachedData = dataCache.tables.get(id);
-					showTableDetails(cachedData);
-					return;
+			// Fetch table details
+			async function fetchTableDetails(id) {
+				try {
+					// Check cache first
+					if (dataCache.tables.has(id)) {
+						const cachedData = dataCache.tables.get(id);
+						showTableDetails(cachedData);
+						return;
+					}
+
+					// TODO: Replace with actual API call
+					const response = await fetch(`${API_BASE_URL}/api/table/${id}`);
+					const data = await response.json();
+
+					// Cache the response
+					dataCache.tables.set(id, data);
+					saveCacheToStorage();
+
+					showTableDetails(data);
+				} catch (error) {
+					showMessage("Error fetching table details. Please try again.");
 				}
-				
-				// TODO: Replace with actual API call
-				const response = await fetch(`${API_BASE_URL}/api/table/${id}`);
-				const data = await response.json();
+			} // Show table details
+			function showTableDetails(tableData) {
+				// Push current view to history
+				if (currentView) {
+					navigationHistory.push(currentView);
+				}
+				currentView = { type: "table", id: tableData.id, data: tableData };
 
-				// Cache the response
-				dataCache.tables.set(id, data);
-				saveCacheToStorage();
-
-				showTableDetails(data);
-			} catch (error) {
-				showMessage("Error fetching table details. Please try again.");
-			}
-		}		// Show table details
-		function showTableDetails(tableData) {
-			// Push current view to history
-			if (currentView) {
-				navigationHistory.push(currentView);
-			}
-			currentView = { type: 'table', id: tableData.id, data: tableData };
-			
-			resultsContainer.innerHTML = "";
-			svg.classed("active", false);
-			backButton.classList.add("active");
+				resultsContainer.innerHTML = "";
+				svg.classed("active", false);
+				backButton.classList.add("active");
 
 				let html = '<div style="max-width: 800px; margin: 0 auto;">';
 
@@ -971,7 +972,7 @@
 						drawLineage(cachedData);
 						return;
 					}
-					
+
 					// TODO: Replace with actual API call
 					const response = await fetch(`${API_BASE_URL}/api/lineage/${id}`);
 					const data = await response.json();
@@ -1006,14 +1007,14 @@
 					// Customize node data - only keep essential fields
 					const customDetails = {
 						name: details.name || colId,
-						t_type: details.t_type || 'default',
+						t_type: details.t_type || "default",
 						// Only include 2-3 most important fields
 						table: details.table || details.path || null,
-						type: details.type || details.data_type || null
+						type: details.type || details.data_type || null,
 					};
-					
+
 					// Remove null values
-					Object.keys(customDetails).forEach(key => {
+					Object.keys(customDetails).forEach((key) => {
 						if (customDetails[key] === null) {
 							delete customDetails[key];
 						}
@@ -1086,7 +1087,9 @@
 				}
 
 				// Define arrowhead marker (smaller size)
-				svg.append("defs").append("marker")
+				svg
+					.append("defs")
+					.append("marker")
 					.attr("id", "arrowhead")
 					.attr("viewBox", "0 -5 10 10")
 					.attr("refX", 8)
@@ -1243,7 +1246,11 @@
 
 					// Get custom details (already filtered)
 					const detailEntries = Object.entries(d.details).filter(
-						([key, value]) => key !== "name" && value !== null && value !== undefined && value !== ""
+						([key, value]) =>
+							key !== "name" &&
+							value !== null &&
+							value !== undefined &&
+							value !== ""
 					);
 
 					// Display details (max 3 lines to fit in smaller card)
@@ -1386,9 +1393,9 @@
 					const tooltip = document.getElementById("lineage-tooltip");
 					if (tooltip) {
 						tooltip.style.display = "none";
+					}
 				}
 			}
-		}
-	</script>
-</body>
+		</script>
+	</body>
 </html>
