@@ -429,6 +429,9 @@
 			// MAIN APPLICATION CODE
 			// ============================================
 
+			// API Configuration
+			const API_BASE_URL = "http://localhost:8000";
+
 			// Global function to open lineage modal (call this from parent page)
 			window.openLineageModal = function () {
 				document.getElementById("lineage-modal").classList.add("active");
@@ -516,8 +519,7 @@
 		// Fetch suggestions with debouncing
 		async function fetchSuggestions(query) {
 			try {
-				// TODO: Replace with actual API call
-				const response = await fetch(`/api/suggest?q=${query}`);
+				const response = await fetch(`${API_BASE_URL}/api/suggest?q=${query}`);
 				const suggestions = await response.json();
 				
 				showSuggestions(suggestions);
@@ -580,32 +582,29 @@
 
 		// Fetch search results from API
 		async function fetchSearchResults(query) {
-			try {
-				// Check cache first
-				const cacheKey = `search_${query}`;
-			if (dataCache.searches.has(cacheKey)) {
-				const cachedData = dataCache.searches.get(cacheKey);
-				currentApiResponse = cachedData;
-				showResults(cachedData);
-				return;
-			}
-
-			// TODO: Replace with actual API call
-			const response = await fetch(`/api/search?q=${query}`);
-			const data = await response.json();
-
-			// Cache the response
-			dataCache.searches.set(cacheKey, data);
-			saveCacheToStorage();
-
-			currentApiResponse = data;
-			showResults(data);
-		} catch (error) {
-			showMessage("Error fetching results. Please try again.");
+		try {
+			// Check cache first
+			const cacheKey = `search_${query}`;
+		if (dataCache.searches.has(cacheKey)) {
+			const cachedData = dataCache.searches.get(cacheKey);
+			currentApiResponse = cachedData;
+			showResults(cachedData);
+			return;
 		}
-	}
 
-		// Determine response type and display accordingly
+		const response = await fetch(`${API_BASE_URL}/api/search?q=${query}`);
+		const data = await response.json();
+
+		// Cache the response
+		dataCache.searches.set(cacheKey, data);
+		saveCacheToStorage();
+
+		currentApiResponse = data;
+		showResults(data);
+	} catch (error) {
+		showMessage("Error fetching results. Please try again.");
+	}
+}		// Determine response type and display accordingly
 		function showResults(data) {
 			// Reset navigation when showing search results
 			navigationHistory.length = 0;
