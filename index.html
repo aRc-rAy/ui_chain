@@ -726,7 +726,7 @@
 				}
 
 				// TODO: Replace with actual API call
-				const response = await fetch(`/api/column/${id}`);
+				const response = await fetch(`${API_BASE_URL}/api/column/${id}`);
 				const data = await response.json();
 
 				// Cache the response
@@ -831,7 +831,7 @@
 				}
 				
 				// TODO: Replace with actual API call
-				const response = await fetch(`/api/table/${id}`);
+				const response = await fetch(`${API_BASE_URL}/api/table/${id}`);
 				const data = await response.json();
 
 				// Cache the response
@@ -973,7 +973,7 @@
 					}
 					
 					// TODO: Replace with actual API call
-					const response = await fetch(`/api/lineage/${id}`);
+					const response = await fetch(`${API_BASE_URL}/api/lineage/${id}`);
 					const data = await response.json();
 
 					// Cache the response
