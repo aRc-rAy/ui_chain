@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Lineage Visualization</title>
+
+		<!-- Cache control for instant loading -->
+		<meta http-equiv="Cache-Control" content="max-age=31536000, immutable" />
+		<meta http-equiv="Expires" content="31536000" />
+
+		<script src="https://d3js.org/d3.v7.min.js"></script>
+		<style>
+			/* Modal Overlay */
+			#lineage-modal {
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				background: rgba(0, 0, 0, 0.7);
+				z-index: 10000;
+				display: none;
+				animation: fadeIn 0.2s ease;
+			}
+			#lineage-modal.active {
+				display: block;
+			}
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+				}
+				to {
+					opacity: 1;
+				}
+			}
+			#lineage-modal-content {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				width: 90%;
+				height: 96%;
+				background: #f5f5f5;
+				border-radius: 16px;
+				box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+				display: flex;
+				flex-direction: column;
+				overflow: hidden;
+				animation: slideIn 0.3s ease;
+			}
+			@keyframes slideIn {
+				from {
+					transform: translate(-50%, -50%) scale(0.9);
+					opacity: 0;
+				}
+				to {
+					transform: translate(-50%, -50%) scale(1);
+					opacity: 1;
+				}
+			}
+			#close-modal {
+				position: absolute;
+				top: 16px;
+				right: 16px;
+				width: 40px;
+				height: 40px;
+				background: #ef4444;
+				color: white;
+				border: none;
+				border-radius: 50%;
+				cursor: pointer;
+				font-size: 24px;
+				font-weight: bold;
+				z-index: 10001;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				transition: all 0.2s ease;
+				box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+			}
+			#close-modal:hover {
+				background: #dc2626;
+				transform: scale(1.1);
+				box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
+			}
+
+			body {
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				background: #f5f5f5;
+				margin: 0;
+				overflow: hidden;
+				display: flex;
+				flex-direction: column;
+				height: 100vh;
+			}
+			#main-container {
+				flex: 1;
+				overflow: auto;
+				position: relative;
+				background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+			}
+			svg {
+				width: 100%;
+				height: 100%;
+				display: none;
+				min-height: 1200px; /* Increased minimum height for better spacing */
+			}
+			svg.active {
+				display: block;
+			}
+			#search-container {
+				padding: 20px;
+				background: white;
+				border-top: 2px solid #e0e0e0;
+				box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+				position: sticky;
+				bottom: 0;
+				z-index: 1000;
+			}
+			#search-input-wrapper {
+				position: relative;
+			}
+			#search-input {
+				width: 100%;
+				padding: 14px 20px;
+				font-size: 16px;
+				border: 2px solid #ddd;
+				border-radius: 10px;
+				outline: none;
+				box-sizing: border-box;
+				transition: all 0.3s ease;
+			}
+			#search-input:focus {
+				border-color: #4f46e5;
+				box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+			}
+			#suggestions-dropdown {
+				position: absolute;
+				bottom: 100%;
+				left: 0;
+				right: 0;
+				background: white;
+				border: 2px solid #4f46e5;
+				border-bottom: none;
+				border-radius: 10px 10px 0 0;
+				max-height: 300px;
+				overflow-y: auto;
+				display: none;
+				box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+				margin-bottom: -2px;
+			}
+			#suggestions-dropdown.active {
+				display: block;
+			}
+			.suggestion-item {
+				padding: 12px 20px;
+				cursor: pointer;
+				border-bottom: 1px solid #f3f4f6;
+				transition: background 0.15s ease;
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			}
+			.suggestion-item:hover {
+				background: #f9fafb;
+			}
+			.suggestion-item:last-child {
+				border-bottom: none;
+			}
+			.suggestion-name {
+				font-weight: 600;
+				color: #111827;
+			}
+			.loading-spinner {
+				display: inline-block;
+				width: 16px;
+				height: 16px;
+				border: 2px solid #e5e7eb;
+				border-top-color: #4f46e5;
+				border-radius: 50%;
+				animation: spin 0.6s linear infinite;
+				margin-left: 12px;
+			}
+			@keyframes spin {
+				to {
+					transform: rotate(360deg);
+				}
+			}
+			#results-container {
+				padding: 20px;
+				overflow: auto;
+			}
+			.message {
+				padding: 20px;
+				background: #fff3cd;
+				border: 1px solid #ffc107;
+				border-radius: 8px;
+				color: #856404;
+				text-align: center;
+				font-size: 16px;
+			}
+			.items-list {
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+			}
+			.item-row {
+				background: white;
+				padding: 18px 24px;
+				border-radius: 10px;
+				box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+				cursor: pointer;
+				transition: all 0.2s ease;
+				border-left: 3px solid transparent;
+				display: flex;
+				align-items: center;
+				gap: 24px;
+				border: 1px solid #f3f4f6;
+			}
+			.item-row:hover {
+				box-shadow: 0 4px 16px rgba(79, 70, 229, 0.1);
+				border-left-color: #4f46e5;
+				border-color: #e0e7ff;
+				transform: translateX(2px);
+				background: #fafbff;
+			}
+			.item-row .item-name {
+				font-weight: 600;
+				color: #111827;
+				font-size: 16px;
+				min-width: 220px;
+				letter-spacing: -0.01em;
+			}
+			.item-row .item-details {
+				display: flex;
+				gap: 32px;
+				flex-wrap: wrap;
+				flex: 1;
+				align-items: center;
+			}
+			.item-row .detail-item {
+				font-size: 13px;
+				color: #6b7280;
+				display: flex;
+				align-items: baseline;
+				gap: 6px;
+			}
+			.item-row .detail-item .detail-key {
+				font-weight: 500;
+				color: #9ca3af;
+				font-size: 12px;
+				text-transform: uppercase;
+				letter-spacing: 0.03em;
+			}
+			.item-row .detail-item .detail-value {
+				font-weight: 500;
+				color: #374151;
+			}
+			.item-row .type-badge {
+				padding: 4px 10px;
+				border-radius: 4px;
+				font-size: 11px;
+				font-weight: 600;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
+			.type-badge.source {
+				background: #059669;
+				color: white;
+			}
+			.type-badge.mda {
+				background: #4f46e5;
+				color: white;
+			}
+			.type-badge.gda {
+				background: #8b5cf6;
+				color: white;
+			}
+			.type-badge.cda {
+				background: #06b6d4;
+				color: white;
+			}
+			.type-badge.ingest {
+				background: #f59e0b;
+				color: white;
+			}
+			.type-badge.transform {
+				background: #ec4899;
+				color: white;
+			}
+			.type-badge.target {
+				background: #dc2626;
+				color: white;
+			}
+			.type-badge.default {
+				background: #6b7280;
+				color: white;
+			}
+			.section-title {
+				font-size: 14px;
+				font-weight: 600;
+				margin: 24px 0 12px 0;
+				color: #6b7280;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+				padding-bottom: 8px;
+				border-bottom: 2px solid #f3f4f6;
+			}
+			.back-button {
+				position: absolute;
+				top: 20px;
+				left: 20px;
+				padding: 12px 24px;
+				background: #4f46e5;
+				color: white;
+				border: none;
+				border-radius: 10px;
+				cursor: pointer;
+				font-size: 15px;
+				font-weight: 600;
+				z-index: 1000;
+				display: none;
+				box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+				transition: all 0.3s ease;
+			}
+			.back-button.active {
+				display: block;
+			}
+			.back-button:hover {
+				background: #4338ca;
+				transform: translateY(-2px);
+				box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+			}
+			.level-label {
+				font-size: 14px;
+				font-weight: 600;
+				fill: #6b7280;
+				text-anchor: middle;
+			}
+		</style>
+		
+		<!-- Preload critical resources -->
+		<link rel="preload" href="https://d3js.org/d3.v7.min.js" as="script">
+	</head>
+	<body>
+		<!-- Modal Overlay -->
+		<div id="lineage-modal" class="active">
+			<button id="close-modal" title="Close">×</button>
+			<div id="lineage-modal-content">
+				<div id="main-container">
+					<button id="back-button" class="back-button">
+						← Back to Results
+					</button>
+					<div id="results-container"></div>
+					<svg></svg>
+				</div>
+				<div id="search-container">
+					<div id="search-input-wrapper">
+						<div id="suggestions-dropdown"></div>
+						<input
+							type="text"
+							id="search-input"
+							placeholder="Enter column name or table name : "
+						/>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// ============================================
+			// CACHING SYSTEM FOR INSTANT SCREEN SWITCHING
+			// ============================================
+
+			// Cache for storing fetched data
+			const dataCache = {
+				columns: new Map(),
+				tables: new Map(),
+				lineage: new Map(),
+				searches: new Map(),
+			};
+
+			// Save to localStorage for persistence across page reloads
+			function saveCacheToStorage() {
+				try {
+					const cacheData = {
+						columns: Array.from(dataCache.columns.entries()),
+						tables: Array.from(dataCache.tables.entries()),
+						lineage: Array.from(dataCache.lineage.entries()),
+						searches: Array.from(dataCache.searches.entries()),
+					timestamp: Date.now(),
+				};
+				localStorage.setItem("lineageCache", JSON.stringify(cacheData));
+			} catch (e) {
+				// Failed to save cache
+			}
+		}			// Load from localStorage on page load
+			function loadCacheFromStorage() {
+				try {
+					const cached = localStorage.getItem("lineageCache");
+					if (cached) {
+					const cacheData = JSON.parse(cached);
+					// Check if cache is less than 1 hour old
+					if (Date.now() - cacheData.timestamp < 3600000) {
+						dataCache.columns = new Map(cacheData.columns);
+						dataCache.tables = new Map(cacheData.tables);
+						dataCache.lineage = new Map(cacheData.lineage);
+						dataCache.searches = new Map(cacheData.searches);
+					}
+				}
+			} catch (e) {
+				// Cache loading failed
+			}
+		}			// Navigation history for instant back navigation
+			const navigationHistory = [];
+			let currentView = null;
+
+			// DOM cache to avoid re-rendering
+			const domCache = new Map();
+
+			// Initialize cache on page load
+			loadCacheFromStorage();
+
+			// Save cache before page unload
+			window.addEventListener("beforeunload", saveCacheToStorage);
+
+			// ============================================
+			// MAIN APPLICATION CODE
+			// ============================================
+
+			// Global function to open lineage modal (call this from parent page)
+			window.openLineageModal = function () {
+				document.getElementById("lineage-modal").classList.add("active");
+			};
+
+			// Global function to close lineage modal
+			window.closeLineageModal = function () {
+				document.getElementById("lineage-modal").classList.remove("active");
+			};
+
+			// State management
+			let currentApiResponse = null;
+			let debounceTimer = null;
+			const resultsContainer = document.getElementById("results-container");
+			const searchInput = document.getElementById("search-input");
+			const backButton = document.getElementById("back-button");
+			const closeModalBtn = document.getElementById("close-modal");
+			const suggestionsDropdown = document.getElementById(
+				"suggestions-dropdown"
+			);
+			const svg = d3.select("svg");
+
+			// Close modal button
+			closeModalBtn.addEventListener("click", () => {
+				window.closeLineageModal();
+			});
+
+			// Close on escape key
+			document.addEventListener("keydown", (e) => {
+				if (e.key === "Escape") {
+					window.closeLineageModal();
+				}
+			});
+
+			// Handle search input with autocomplete suggestions
+			searchInput.addEventListener("input", (e) => {
+			const query = e.target.value.trim();
+
+			// Clear previous timer
+			if (debounceTimer) {
+				clearTimeout(debounceTimer);
+			}
+
+			if (query.length === 0) {
+				hideSuggestions();
+				return;
+			}
+
+			// Show loading state
+			showLoadingState();
+
+			// Debounce: wait 300ms before fetching suggestions
+			debounceTimer = setTimeout(() => {
+				fetchSuggestions(query);
+			}, 300);
+		});			// Handle Enter key for full search
+			searchInput.addEventListener("keypress", async (e) => {
+				if (e.key === "Enter") {
+					const query = e.target.value.trim();
+					if (query) {
+						hideSuggestions();
+						await fetchSearchResults(query);
+					}
+				}
+			});
+
+			// Back button functionality with cached navigation
+			backButton.addEventListener("click", () => {
+				// Pop from navigation history
+				if (navigationHistory.length > 0) {
+					const previousView = navigationHistory.pop();
+					currentView = previousView;
+					
+					// Restore previous view from cache or current response
+					if (previousView && previousView.data) {
+						showResults(previousView.data);
+					} else {
+						showResults(currentApiResponse);
+					}
+				} else {
+					showResults(currentApiResponse);
+				}
+			});
+
+		// Fetch suggestions with debouncing
+		async function fetchSuggestions(query) {
+			try {
+				// TODO: Replace with actual API call
+				const response = await fetch(`/api/suggest?q=${query}`);
+				const suggestions = await response.json();
+				
+				showSuggestions(suggestions);
+			} catch (error) {
+				hideSuggestions();
+			}
+		}			// Show suggestions dropdown
+			function showSuggestions(suggestions) {
+				if (suggestions.length === 0) {
+					hideSuggestions();
+					return;
+				}
+
+				let html = "";
+				suggestions.forEach((name) => {
+					html += `<div class="suggestion-item" data-name="${name}">`;
+					html += `<span class="suggestion-name">${name}</span>`;
+					html += `</div>`;
+				});
+
+				suggestionsDropdown.innerHTML = html;
+				suggestionsDropdown.classList.add("active");
+
+				// Add click handlers to suggestions
+				document.querySelectorAll(".suggestion-item").forEach((item) => {
+					item.addEventListener("click", () => {
+						const name = item.dataset.name;
+
+						searchInput.value = name;
+						hideSuggestions();
+
+						// Trigger search with the selected name
+						handleSearch(name);
+					});
+				});
+			}
+
+			// Hide suggestions dropdown
+			function hideSuggestions() {
+				suggestionsDropdown.classList.remove("active");
+				suggestionsDropdown.innerHTML = "";
+			}
+
+			// Show loading state in suggestions
+			function showLoadingState() {
+				suggestionsDropdown.innerHTML =
+					'<div style="padding: 12px 20px; color: #6b7280; display: flex; align-items: center;"><span>Searching...</span><span class="loading-spinner"></span></div>';
+				suggestionsDropdown.classList.add("active");
+			}
+
+			// Click outside to close suggestions
+			document.addEventListener("click", (e) => {
+				if (
+					!searchInput.contains(e.target) &&
+					!suggestionsDropdown.contains(e.target)
+				) {
+				hideSuggestions();
+			}
+		});
+
+		// Fetch search results from API
+		async function fetchSearchResults(query) {
+			try {
+				// Check cache first
+				const cacheKey = `search_${query}`;
+			if (dataCache.searches.has(cacheKey)) {
+				const cachedData = dataCache.searches.get(cacheKey);
+				currentApiResponse = cachedData;
+				showResults(cachedData);
+				return;
+			}
+
+			// TODO: Replace with actual API call
+			const response = await fetch(`/api/search?q=${query}`);
+			const data = await response.json();
+
+			// Cache the response
+			dataCache.searches.set(cacheKey, data);
+			saveCacheToStorage();
+
+			currentApiResponse = data;
+			showResults(data);
+		} catch (error) {
+			showMessage("Error fetching results. Please try again.");
+		}
+	}
+
+		// Determine response type and display accordingly
+		function showResults(data) {
+			// Reset navigation when showing search results
+			navigationHistory.length = 0;
+			currentView = { type: 'results', data: data };				resultsContainer.innerHTML = "";
+				svg.classed("active", false);
+				backButton.classList.remove("active");
+
+				if (Array.isArray(data)) {
+					// Array response - show lineage
+					drawLineage(data);
+				} else if (typeof data === "object") {
+					// Dictionary response
+					if (data.msg) {
+						// No data found
+						showMessage(data.msg);
+					} else {
+						// Show columns and/or tables
+						displayColumnsAndTables(data);
+					}
+				}
+			}
+
+			// Display message
+			function showMessage(message) {
+				resultsContainer.innerHTML = `<div class="message">${message}</div>`;
+			}
+
+			// Display columns and tables in row-wise layout
+			function displayColumnsAndTables(data) {
+				let html = "";
+
+				if (data.columns && data.columns.length > 0) {
+					html += '<div class="section-title">Columns</div>';
+					html += '<div class="items-list">';
+					data.columns.forEach((col) => {
+						html += createItemRow(col, "column");
+					});
+					html += "</div>";
+				}
+
+				if (data.tables && data.tables.length > 0) {
+					html += '<div class="section-title">Tables</div>';
+					html += '<div class="items-list">';
+					data.tables.forEach((tbl) => {
+						html += createItemRow(tbl, "table");
+					});
+					html += "</div>";
+				}
+
+				resultsContainer.innerHTML = html;
+
+				// Add click handlers
+				document.querySelectorAll(".item-row").forEach((row) => {
+					row.addEventListener("click", async () => {
+						const id = row.dataset.id;
+						const type = row.dataset.type;
+
+						if (type === "table") {
+							await fetchTableDetails(id);
+						} else {
+							await fetchColumnDetails(id);
+						}
+					});
+				});
+			}
+
+			// Create item row HTML (row-wise layout)
+			function createItemRow(item, type) {
+				const id = item.id || item.column_id || item.table_id;
+				const name = item.name || id;
+				const tType = item.t_type || "";
+
+				let html = `<div class="item-row" data-id="${id}" data-type="${type}">`;
+
+				// Name
+				html += `<div class="item-name">${name}</div>`;
+
+				// Details
+				html += '<div class="item-details">';
+
+				// Type badge if exists
+				if (tType) {
+					html += `<span class="type-badge ${tType.toLowerCase()}">${tType.toUpperCase()}</span>`;
+				}
+
+				// Other details - limit to important fields
+				const importantFields =
+					type === "column"
+						? ["table", "type", "data_type", "schema"]
+						: ["schema", "rows", "type"];
+
+				for (const [key, value] of Object.entries(item)) {
+					if (
+						importantFields.includes(key) &&
+						value !== null &&
+						value !== undefined &&
+						value !== ""
+					) {
+						html += `<span class="detail-item">`;
+						html += `<span class="detail-key">${key}</span>`;
+						html += `<span class="detail-value">${value}</span>`;
+						html += `</span>`;
+					}
+				}
+
+				html += "</div>";
+				html += "</div>";
+				return html;
+			}
+
+		// Fetch column details
+		async function fetchColumnDetails(id) {
+			try {
+				// Check cache first
+				if (dataCache.columns.has(id)) {
+					const cachedData = dataCache.columns.get(id);
+					showColumnDetails(cachedData);
+					return;
+				}
+
+				// TODO: Replace with actual API call
+				const response = await fetch(`/api/column/${id}`);
+				const data = await response.json();
+
+				// Cache the response
+				dataCache.columns.set(id, data);
+				saveCacheToStorage();
+
+				showColumnDetails(data);
+			} catch (error) {
+				showMessage("Error fetching column details. Please try again.");
+			}
+		}		// Show column details
+		function showColumnDetails(columnData) {
+			// Push current view to history
+			if (currentView) {
+				navigationHistory.push(currentView);
+			}
+			currentView = { type: 'column', id: columnData.id, data: columnData };
+			
+			resultsContainer.innerHTML = "";
+			svg.classed("active", false);
+			backButton.classList.add("active");
+
+				let html = '<div style="max-width: 800px; margin: 0 auto;">';
+
+				// Simple card
+				html +=
+					'<div style="background: white; padding: 32px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+
+				// Header with name and badge
+				html += `<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px;">`;
+				html += `<div style="display: flex; align-items: center; gap: 12px;">`;
+				html += `<h2 style="margin: 0; color: #111827; font-size: 22px; font-weight: 600;">${columnData.name}</h2>`;
+				if (columnData.t_type) {
+					const badgeColor = getBadgeColorForType(columnData.t_type);
+					html += `<span style="padding: 4px 10px; background: ${badgeColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;">${columnData.t_type}</span>`;
+				}
+				html += `</div>`;
+				html += `<button onclick="fetchLineage('${columnData.id}')" style="padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">View Lineage</button>`;
+				html += `</div>`;
+
+				// Simple details grid
+				html +=
+					'<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">';
+
+				// Display all fields except id and name
+				for (const [key, value] of Object.entries(columnData)) {
+					if (
+						key !== "id" &&
+						key !== "name" &&
+						value !== null &&
+						value !== undefined &&
+						value !== ""
+					) {
+						html += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+						html += `<div style="font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">${key.replace(
+							/_/g,
+							" "
+						)}</div>`;
+						html += `<div style="font-size: 15px; color: #111827; font-weight: 500;">${value}</div>`;
+						html += `</div>`;
+					}
+				}
+
+				html += "</div>";
+				html += "</div>";
+				html += "</div>";
+
+				resultsContainer.innerHTML = html;
+			}
+
+			// Helper function to get badge color
+			function getBadgeColorForType(tType) {
+				const type = (tType || "").toLowerCase();
+				switch (type) {
+					case "source":
+						return "#059669";
+					case "mda":
+						return "#4f46e5";
+					case "gda":
+						return "#8b5cf6";
+					case "cda":
+						return "#06b6d4";
+					case "ingest":
+						return "#f59e0b";
+					case "transform":
+						return "#ec4899";
+					case "target":
+						return "#dc2626";
+					default:
+						return "#6b7280";
+				}
+			}
+
+		// Fetch table details
+		async function fetchTableDetails(id) {
+			try {
+				// Check cache first
+				if (dataCache.tables.has(id)) {
+					const cachedData = dataCache.tables.get(id);
+					showTableDetails(cachedData);
+					return;
+				}
+				
+				// TODO: Replace with actual API call
+				const response = await fetch(`/api/table/${id}`);
+				const data = await response.json();
+
+				// Cache the response
+				dataCache.tables.set(id, data);
+				saveCacheToStorage();
+
+				showTableDetails(data);
+			} catch (error) {
+				showMessage("Error fetching table details. Please try again.");
+			}
+		}		// Show table details
+		function showTableDetails(tableData) {
+			// Push current view to history
+			if (currentView) {
+				navigationHistory.push(currentView);
+			}
+			currentView = { type: 'table', id: tableData.id, data: tableData };
+			
+			resultsContainer.innerHTML = "";
+			svg.classed("active", false);
+			backButton.classList.add("active");
+
+				let html = '<div style="max-width: 800px; margin: 0 auto;">';
+
+				// Simple card
+				html +=
+					'<div style="background: white; padding: 32px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+
+				// Header with name and badge
+				html += `<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px;">`;
+				html += `<div style="display: flex; align-items: center; gap: 12px;">`;
+				html += `<h2 style="margin: 0; color: #111827; font-size: 22px; font-weight: 600;">${tableData.name}</h2>`;
+				if (tableData.t_type) {
+					const badgeColor = getBadgeColorForType(tableData.t_type);
+					html += `<span style="padding: 4px 10px; background: ${badgeColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;">${tableData.t_type}</span>`;
+				}
+				html += `</div>`;
+				html += `<button onclick="fetchLineage('${tableData.id}')" style="padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">View Lineage</button>`;
+				html += `</div>`;
+
+				// Simple details grid
+				html +=
+					'<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-bottom: 32px;">';
+
+				// Display key fields
+				const fields = ["id", "path", "source"];
+				fields.forEach((key) => {
+					if (tableData[key] !== undefined && tableData[key] !== null) {
+						html += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+						html += `<div style="font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">${key.replace(
+							/_/g,
+							" "
+						)}</div>`;
+						html += `<div style="font-size: 15px; color: #111827; font-weight: 500;">${tableData[key]}</div>`;
+						html += `</div>`;
+					}
+				});
+
+				html += "</div>";
+
+				// Children section (if exists)
+				if (tableData.children && tableData.children.length > 0) {
+					html += '<div style="margin-bottom: 32px;">';
+					html +=
+						'<div style="font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Children</div>';
+					html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+					tableData.children.forEach((childId) => {
+						html += `<span style="padding: 6px 12px; background: #f3f4f6; color: #374151; border-radius: 6px; font-size: 13px;">${childId}</span>`;
+					});
+					html += "</div>";
+					html += "</div>";
+				}
+
+				// Columns section
+				if (tableData.columns && tableData.columns.length > 0) {
+					html += "<div>";
+					html += `<div style="font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">Columns (${tableData.columns.length})</div>`;
+
+					html += '<div style="overflow-x: auto;">';
+					html += '<table style="width: 100%; border-collapse: collapse;">';
+					html += "<thead>";
+					html +=
+						'<tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">';
+					html +=
+						'<th style="padding: 12px 16px; text-align: left; font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase;">Name</th>';
+					html +=
+						'<th style="padding: 12px 16px; text-align: left; font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase;">Data Type</th>';
+					html += "</tr>";
+					html += "</thead>";
+					html += "<tbody>";
+
+					tableData.columns.forEach((col, index) => {
+						const bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb";
+						html += `<tr class="column-row" data-column-id="${col.id}" style="background: ${bgColor}; border-bottom: 1px solid #f3f4f6; cursor: pointer;">`;
+						html += `<td style="padding: 12px 16px; font-size: 14px; color: #111827; font-weight: 500;">${col.name}</td>`;
+						html += `<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">${col.data_type}</td>`;
+						html += "</tr>";
+					});
+
+					html += "</tbody>";
+					html += "</table>";
+					html += "</div>";
+					html += "</div>";
+				}
+
+				html += "</div>"; // End card
+				html += "</div>";
+
+				resultsContainer.innerHTML = html;
+
+				// Add click handlers to column rows
+				document.querySelectorAll(".column-row").forEach((row) => {
+					row.addEventListener("click", async () => {
+						const columnId = row.dataset.columnId;
+						await fetchColumnDetails(columnId);
+					});
+
+					// Add hover effect
+					row.addEventListener("mouseenter", function () {
+						this.style.background = "#f0f9ff";
+					});
+
+					row.addEventListener("mouseleave", function () {
+						const index = Array.from(this.parentElement.children).indexOf(this);
+						const bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb";
+						this.style.background = bgColor;
+					});
+				});
+			}
+
+			// Fetch lineage for a specific item
+			async function fetchLineage(id) {
+				try {
+					// Check cache first
+					if (dataCache.lineage.has(id)) {
+						const cachedData = dataCache.lineage.get(id);
+						drawLineage(cachedData);
+						return;
+					}
+					
+					// TODO: Replace with actual API call
+					const response = await fetch(`/api/lineage/${id}`);
+					const data = await response.json();
+
+					// Cache the response
+					dataCache.lineage.set(id, data);
+					saveCacheToStorage();
+
+					drawLineage(data);
+				} catch (error) {
+					showMessage("Error fetching lineage. Please try again.");
+				}
+			}
+
+			// Draw lineage visualization
+			function drawLineage(lineageData) {
+				resultsContainer.innerHTML = "";
+				svg.html(""); // Clear previous SVG content
+				svg.classed("active", true);
+				backButton.classList.add("active");
+
+				// Parse lineage data: [level, [col_id, {details}], [target_ids...]]
+				const nodes = [];
+				const links = [];
+				const nodeMap = new Map();
+
+				lineageData.forEach((item) => {
+					const level = item[0];
+					const [colId, details] = item[1];
+					const targetIds = item[2];
+
+					const node = {
+						id: colId,
+						level: level,
+						details: details,
+					};
+					nodes.push(node);
+					nodeMap.set(colId, node);
+
+					// Create links
+					targetIds.forEach((targetId) => {
+						links.push({ source: colId, target: targetId });
+					});
+				});
+
+				const container = document.getElementById("main-container");
+				const width = container.clientWidth;
+				const height = container.clientHeight;
+
+				// Node dimensions - clean and spacious
+				const nodeWidth = 280;
+				const nodeHeight = 180;
+
+				// Calculate positions based on level
+				const levelGroups = d3.group(nodes, (d) => d.level);
+				const levels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+
+				// Increase horizontal spacing - use more width for level spacing
+				const levelSpacing = Math.max(width / (levels.length + 1), 400); // Minimum 400px between levels
+
+				// Add padding to avoid nodes being cut off
+				const padding = 200; // Padding for edges
+				const verticalGap = 80; // Moderate vertical gap between stacked nodes
+
+				levels.forEach((lvl, i) => {
+					const groupNodes = levelGroups.get(lvl);
+
+					// Simple vertical positioning - just stack them with clear gaps
+					groupNodes.forEach((node, j) => {
+						node.x = (i + 1) * levelSpacing;
+						// Simple calculation: padding + (index × spacing between centers)
+						// Spacing between centers = nodeHeight + verticalGap
+						node.y = padding + j * (nodeHeight + verticalGap) + nodeHeight / 2;
+						console.log(
+							`Node ${node.id}: position (${node.x}, ${node.y}), level=${lvl}, verticalIndex=${j}`
+						);
+					});
+				});
+
+				// Determine badge color based on t_type
+				function getBadgeColor(tType) {
+					const type = (tType || "").toLowerCase();
+					switch (type) {
+						case "source":
+							return "#059669";
+						case "mda":
+							return "#4f46e5";
+						case "gda":
+							return "#8b5cf6";
+						case "cda":
+							return "#06b6d4";
+						case "ingest":
+							return "#f59e0b";
+						case "transform":
+							return "#ec4899";
+						case "target":
+							return "#dc2626";
+						default:
+							return "#6b7280";
+					}
+				}
+
+				// Draw curved links
+				svg
+					.selectAll(".link")
+					.data(links)
+					.enter()
+					.append("path")
+					.attr("class", "link")
+					.attr("d", (d) => {
+						const sourceNode = nodeMap.get(d.source);
+						const targetNode = nodeMap.get(d.target);
+						const x1 = sourceNode.x + nodeWidth / 2;
+						const y1 = sourceNode.y;
+						const x2 = targetNode.x - nodeWidth / 2;
+						const y2 = targetNode.y;
+						const midX = (x1 + x2) / 2;
+
+						// Create a smooth cubic bezier curve
+						return `M ${x1},${y1} C ${midX},${y1} ${midX},${y2} ${x2},${y2}`;
+					})
+					.style("fill", "none")
+					.style("stroke", "#9ca3af")
+					.style("stroke-width", "2px")
+					.style("opacity", 0.5);
+
+				// Draw nodes with enhanced design
+				const nodeGroup = svg
+					.selectAll(".node")
+					.data(nodes)
+					.enter()
+					.append("g")
+					.attr("class", "node")
+					.attr(
+						"transform",
+						(d) => `translate(${d.x - nodeWidth / 2},${d.y - nodeHeight / 2})`
+					)
+					.style("cursor", "pointer");
+
+				// Add hover effect - shadow and highlight
+				nodeGroup
+					.on("mouseenter", function (event, d) {
+						d3.select(this)
+							.select(".node-main-rect")
+							.transition()
+							.duration(200)
+							.style("filter", "drop-shadow(0 8px 24px rgba(0, 0, 0, 0.15))")
+							.style("stroke-width", "2px");
+
+						// Show full tooltip
+						showNodeTooltip(event, d);
+					})
+					.on("mousemove", function (event, d) {
+						updateTooltipPosition(event);
+					})
+					.on("mouseleave", function () {
+						d3.select(this)
+							.select(".node-main-rect")
+							.transition()
+							.duration(200)
+							.style("filter", "drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08))")
+							.style("stroke-width", "1.5px");
+
+						hideNodeTooltip();
+					});
+
+				// Main card background
+				nodeGroup
+					.append("rect")
+					.attr("class", "node-main-rect")
+					.attr("width", nodeWidth)
+					.attr("height", nodeHeight)
+					.attr("rx", 10)
+					.attr("ry", 10)
+					.style("fill", "#ffffff")
+					.style("stroke", "#d1d5db")
+					.style("stroke-width", "1.5px")
+					.style("filter", "drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08))")
+					.style("transition", "all 0.2s ease");
+
+				// Top colored stripe with gradient
+				nodeGroup
+					.append("rect")
+					.attr("width", nodeWidth)
+					.attr("height", 5)
+					.attr("rx", "10 10 0 0")
+					.style("fill", (d) => getBadgeColor(d.details.t_type));
+
+				// Column/Table name - bold and prominent
+				nodeGroup
+					.append("text")
+					.attr("class", "node-id")
+					.attr("x", 16)
+					.attr("y", 32)
+					.style("font-size", "15px")
+					.style("font-weight", "700")
+					.style("fill", "#111827")
+					.text((d) => {
+						const name = d.details.name || d.id;
+						return name.length > 26 ? name.substring(0, 24) + "..." : name;
+					});
+
+				// Type badge - prominent pill shape
+				nodeGroup
+					.filter((d) => d.details.t_type)
+					.append("rect")
+					.attr("x", nodeWidth - 72)
+					.attr("y", 18)
+					.attr("width", 60)
+					.attr("height", 24)
+					.attr("rx", 12)
+					.style("fill", (d) => getBadgeColor(d.details.t_type))
+					.style("opacity", 0.15);
+
+				nodeGroup
+					.filter((d) => d.details.t_type)
+					.append("text")
+					.attr("x", nodeWidth - 42)
+					.attr("y", 33)
+					.attr("text-anchor", "middle")
+					.style("font-size", "11px")
+					.style("font-weight", "700")
+					.style("fill", (d) => getBadgeColor(d.details.t_type))
+					.style("text-transform", "uppercase")
+					.text((d) => d.details.t_type);
+
+				// Divider line
+				nodeGroup
+					.append("line")
+					.attr("x1", 16)
+					.attr("y1", 50)
+					.attr("x2", nodeWidth - 16)
+					.attr("y2", 50)
+					.style("stroke", "#e5e7eb")
+					.style("stroke-width", 1.5);
+
+				// Add details in clean format
+				nodeGroup.each(function (d) {
+					const group = d3.select(this);
+					let yOffset = 70;
+					const leftMargin = 16;
+					const lineHeight = 24;
+
+					// Priority fields to show
+					const priorityFields = ["table", "type", "schema", "data_type"];
+					const detailEntries = [];
+
+					// Add priority fields first
+					priorityFields.forEach((key) => {
+						if (d.details[key] && key !== "t_type") {
+							detailEntries.push([key, d.details[key]]);
+						}
+					});
+
+					// Add other fields
+					Object.entries(d.details).forEach(([key, value]) => {
+						if (
+							!priorityFields.includes(key) &&
+							key !== "t_type" &&
+							key !== "name" &&
+							value !== null &&
+							value !== undefined &&
+							value !== ""
+						) {
+							detailEntries.push([key, value]);
+						}
+					});
+
+					// Display details (max 4 lines to fit in card)
+					detailEntries.slice(0, 4).forEach(([key, value]) => {
+						// Truncate value if too long
+						let displayValue = String(value);
+						if (displayValue.length > 22) {
+							displayValue = displayValue.substring(0, 20) + "...";
+						}
+
+						// Key label
+						group
+							.append("text")
+							.attr("x", leftMargin)
+							.attr("y", yOffset)
+							.style("font-size", "11px")
+							.style("font-weight", "600")
+							.style("fill", "#6b7280")
+							.style("text-transform", "uppercase")
+							.text(key);
+
+						// Value text
+						group
+							.append("text")
+							.attr("x", leftMargin)
+							.attr("y", yOffset + 14)
+							.style("font-size", "13px")
+							.style("font-weight", "500")
+							.style("fill", "#111827")
+							.text(displayValue);
+
+						yOffset += lineHeight + 10;
+					});
+				});
+
+				// Create a container group for zoom/pan
+				const zoomGroup = svg.append("g").attr("class", "zoom-group");
+
+				// Move all elements to zoom group
+				svg.selectAll("path.link").each(function () {
+					zoomGroup.node().appendChild(this);
+				});
+				svg.selectAll("g.node").each(function () {
+					zoomGroup.node().appendChild(this);
+				});
+
+				// Add zoom and pan functionality
+				const zoom = d3
+					.zoom()
+					.scaleExtent([0.3, 2])
+					.on("zoom", (event) => {
+						zoomGroup.attr("transform", event.transform);
+					});
+
+				svg.call(zoom);
+
+				// Initial zoom to fit content
+				const bounds = zoomGroup.node().getBBox();
+				const fullWidth = bounds.width;
+				const fullHeight = bounds.height;
+				const midX = bounds.x + fullWidth / 2;
+				const midY = bounds.y + fullHeight / 2;
+
+				if (fullWidth > 0 && fullHeight > 0) {
+					const scale = Math.min(width / fullWidth, height / fullHeight) * 0.75; // Reduced from 0.9 to 0.75 for better spacing
+					const translate = [
+						width / 2 - scale * midX,
+						height / 2 - scale * midY,
+					];
+
+					svg.call(
+						zoom.transform,
+						d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+					);
+				}
+
+				// Tooltip functions
+				function showNodeTooltip(event, d) {
+					let tooltip = document.getElementById("lineage-tooltip");
+					if (!tooltip) {
+						tooltip = document.createElement("div");
+						tooltip.id = "lineage-tooltip";
+						tooltip.style.position = "fixed";
+						tooltip.style.background = "#1f2937";
+						tooltip.style.color = "white";
+						tooltip.style.padding = "16px";
+						tooltip.style.borderRadius = "8px";
+						tooltip.style.fontSize = "13px";
+						tooltip.style.lineHeight = "1.6";
+						tooltip.style.boxShadow = "0 8px 24px rgba(0,0,0,0.3)";
+						tooltip.style.zIndex = "100000";
+						tooltip.style.maxWidth = "320px";
+						tooltip.style.pointerEvents = "none";
+						document.body.appendChild(tooltip);
+					}
+
+					let html = `<div style="font-weight: 700; font-size: 15px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2);">`;
+					html += `${d.details.name || d.id}`;
+					if (d.details.t_type) {
+						const color = getBadgeColor(d.details.t_type);
+						html += ` <span style="background: ${color}; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-left: 8px;">${d.details.t_type.toUpperCase()}</span>`;
+					}
+					html += `</div>`;
+
+					html += `<div style="display: grid; gap: 8px;">`;
+					Object.entries(d.details).forEach(([key, value]) => {
+						if (
+							key !== "t_type" &&
+							key !== "name" &&
+							value !== null &&
+							value !== undefined &&
+							value !== ""
+						) {
+							html += `<div>`;
+							html += `<div style="font-size: 10px; color: #9ca3af; text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">${key.replace(
+								/_/g,
+								" "
+							)}</div>`;
+							html += `<div style="font-size: 13px; color: #f3f4f6; font-weight: 500;">${value}</div>`;
+							html += `</div>`;
+						}
+					});
+					html += `</div>`;
+					html += `<div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 11px; color: #9ca3af;">Level: ${d.level}</div>`;
+
+					tooltip.innerHTML = html;
+					tooltip.style.display = "block";
+					updateTooltipPosition(event);
+				}
+
+				function updateTooltipPosition(event) {
+					const tooltip = document.getElementById("lineage-tooltip");
+					if (tooltip) {
+						tooltip.style.left = event.pageX + 20 + "px";
+						tooltip.style.top = event.pageY - 20 + "px";
+					}
+				}
+
+				function hideNodeTooltip() {
+					const tooltip = document.getElementById("lineage-tooltip");
+					if (tooltip) {
+						tooltip.style.display = "none";
+				}
+			}
+		}
+	</script>
+</body>
+</html>
